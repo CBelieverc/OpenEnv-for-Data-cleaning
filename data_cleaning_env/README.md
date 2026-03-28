@@ -115,14 +115,22 @@ Each task has a deterministic grader that scores 0.0–1.0:
 
 ## Baseline Scores
 
-Baseline scores from a simulated perfect-action agent:
+Baseline scores from `python inference.py` (deterministic rule-based agent):
 
-| Task | Initial Score | Final Score | Steps Used | Max Steps |
-|------|--------------|-------------|------------|-----------|
-| `easy` | 0.000 | 1.000 | 19 | 30 |
-| `medium` | 0.000 | 1.000 | 10 | 50 |
-| `hard` | 0.000 | 1.000 | 10 | 60 |
-| **mean** | **0.000** | **1.000** | — | — |
+| Task | Score |
+|------|-------|
+| `easy` | 0.867 |
+| `medium` | 0.617 |
+| `hard` | 0.750 |
+| **mean** | **0.744** |
+
+Optimal scores achievable with perfect actions:
+
+| Task | Score |
+|------|-------|
+| `easy` | 1.000 |
+| `medium` | 1.000 |
+| `hard` | 1.000 |
 
 Graders are deterministic: running the same sequence of actions always produces the same score.
 
