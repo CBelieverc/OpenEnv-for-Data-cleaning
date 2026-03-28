@@ -29,6 +29,16 @@ class CleaningObservation(Observation):
     message: str = Field("", description="Human-readable feedback")
 
 
+class CleaningReward(Action):
+    """Typed reward model for data cleaning — captures reward breakdown per step."""
+    score: float = Field(0.0, description="Current grader score (0.0–1.0)")
+    score_delta: float = Field(0.0, description="Score improvement this step")
+    step_reward: float = Field(0.0, description="Reward for score improvement")
+    completion_bonus: float = Field(0.0, description="Bonus for reaching score 1.0")
+    stagnation_penalty: float = Field(0.0, description="Penalty for no improvement")
+    cumulative_score: float = Field(0.0, description="Cumulative grader score across episode")
+
+
 class CleaningState(State):
     """Episode state for data cleaning."""
     task_id: str = ""

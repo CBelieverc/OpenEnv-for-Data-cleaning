@@ -105,14 +105,27 @@ Each task has a deterministic grader that scores 0.0–1.0:
 
 - **Easy**: Field-level exact match against expected values
 - **Medium**: Format compliance + correctness (case-insensitive string comparison)
-- **Hard**: 50% duplicate identification (F1) + 50% merge correctness
+- **Hard**: 50% duplicate identification (F1) + 50% record removal accuracy
+
+## Baseline Scores
+
+Baseline scores from a simulated perfect-action agent (all correct set_field / mark_duplicate actions applied):
+
+| Task | Initial Score | Final Score | Steps Used | Max Steps |
+|------|--------------|-------------|------------|-----------|
+| `easy` | 0.000 | 1.000 | 15 | 30 |
+| `medium` | 0.000 | 1.000 | 44 | 50 |
+| `hard` | 0.250 | 1.000 | 5 | 60 |
+| **mean** | **0.083** | **1.000** | — | — |
+
+Graders are deterministic: running the same sequence of actions always produces the same score.
 
 ## Project Structure
 
 ```
 data_cleaning_env/
 ├── __init__.py
-├── models.py              # CleanAction, CleaningObservation, CleaningState
+├── models.py              # CleanAction, CleaningObservation, CleaningReward, CleaningState
 ├── client.py              # DataCleaningEnv client
 ├── inference.py           # Baseline inference script
 ├── openenv.yaml           # Environment manifest
