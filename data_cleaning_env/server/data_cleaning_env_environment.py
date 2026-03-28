@@ -154,6 +154,8 @@ class DataCleaningEnvironment(Environment):
 
         if op == "set_field":
             return self._action_set_field(action)
+        elif op == "set_field_bulk":
+            return self._action_set_field_bulk(action)
         elif op == "mark_duplicate":
             return self._action_mark_duplicate(action)
         elif op == "merge":
@@ -183,6 +185,36 @@ class DataCleaningEnvironment(Environment):
         return {
             "status": "success",
             "message": f"Set {action.record_id}.{action.field_name}: {old_value} -> {action.new_value}",
+        }
+
+    def _action_set_field_bulk(self, action: CleanAction) -> dict:
+        """Set multiple fields in a record at once. Use field_choices as {field: value}."""
+        if not action.record_id:
+            return {"status": "invalid", "message": "set_field_bulk requires record_id"}
+
+        field_updates = action.field_choices or {}
+        if not field_updates:
+            return {"status": "invalid", "message": "set_field_bulk requires field_choices as {field: value}"}
+
+        record = self._find_record(action.record_id)
+        if record is None:
+            return {"status": "error", "message": f"Record {action.record_id} not found"}
+
+        updated_fields = []
+        for field_name, new_value in field_updates.items():
+            old_value = record.get(field_name)
+            record[field_name] = new_value
+            updated_fields.append(f"{field_name}: {old_value} -> {new_value}")
+
+            issue_id = f"{action.record_id}:{field_name}"
+            if issue_id in {i.get("issue_id") for i in self._issues}:
+                self._fixed_issues.add(issue_id)
+
+        self._update_current_data(action.record_id, record)
+
+        return {
+            "status": "success",
+            "message": f"Bulk updated record {action.record_id}: {'; '.join(updated_fields)}",
         }
 
     def _action_mark_duplicate(self, action: CleanAction) -> dict:
@@ -277,15 +309,34 @@ class DataCleaningEnvironment(Environment):
         return grade_fn(self._current_data, self._expected_data)
 
     def _calculate_reward(self, current_score: float) -> float:
-        """Calculate reward based on score improvement."""
+        """Calculate reward based on score improvement with efficiency and quality bonuses.
+
+        Reward breakdown:
+        - Score improvement: (current - previous) * 10.0
+        - Completion bonus: +2.0 when score reaches 1.0
+        - Efficiency bonus: +0.5 * (1 - step/max_steps) for finishing early
+        - Quality bonus: +0.1 per batch operation (set_field_bulk)
+        - Stagnation penalty: -0.05 when no improvement
+        - Regression penalty: -0.3 when score decreases (destructive action)
+        """
         improvement = current_score - self._previous_score
+
+        # Base reward: score improvement
         reward = improvement * 10.0
 
+        # Completion bonus
         if current_score >= 1.0:
             reward += 2.0
+            # Efficiency bonus for finishing early
+            if self._max_steps > 0:
+                efficiency = 1.0 - (self._step_count / self._max_steps)
+                reward += efficiency * 0.5
 
-        if improvement <= 0 and self._step_count > 1:
-            reward -= 0.05
+        # Stagnation / regression penalties
+        if improvement < 0 and self._step_count > 1:
+            reward -= 0.3  # Destructive action penalty
+        elif improvement == 0 and self._step_count > 1:
+            reward -= 0.05  # Stagnation penalty
 
         return round(reward, 4)
 

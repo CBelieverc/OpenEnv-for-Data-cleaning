@@ -30,8 +30,11 @@ Data cleaning is a universal, practical task performed by every data team. It re
 ## Action Space
 
 ```python
-# Fix a field value
+# Fix a single field value
 CleanAction(operation="set_field", record_id="1", field_name="age", new_value=25)
+
+# Fix multiple fields in one record (more efficient = higher score)
+CleanAction(operation="set_field_bulk", record_id="1", field_choices={"age": 25, "active": True, "score": 89.5})
 
 # Mark duplicate
 CleanAction(operation="mark_duplicate", record_id="2", master_id="1")
@@ -67,10 +70,13 @@ CleaningObservation(
 
 ## Reward Design
 
-- **Score improvement**: `reward = (new_score - old_score) * 10.0`
-- **Completion bonus**: +2.0 when score reaches 1.0
-- **Stagnation penalty**: -0.05 when no improvement
-- Scores range from 0.0 to 1.0 based on field-level correctness
+Multi-signal reward function with partial progress:
+
+- **Score improvement**: `(new_score - old_score) * 10.0` — primary signal
+- **Completion bonus**: `+2.0` when score reaches 1.0
+- **Efficiency bonus**: `+0.5 * (1 - step/max_steps)` for finishing early
+- **Stagnation penalty**: `-0.05` when no improvement
+- **Regression penalty**: `-0.3` when score decreases (destructive action)
 
 ## Quick Start
 
@@ -109,14 +115,14 @@ Each task has a deterministic grader that scores 0.0–1.0:
 
 ## Baseline Scores
 
-Baseline scores from a simulated perfect-action agent (all correct set_field / mark_duplicate actions applied):
+Baseline scores from a simulated perfect-action agent:
 
 | Task | Initial Score | Final Score | Steps Used | Max Steps |
 |------|--------------|-------------|------------|-----------|
-| `easy` | 0.000 | 1.000 | 15 | 30 |
-| `medium` | 0.000 | 1.000 | 44 | 50 |
-| `hard` | 0.250 | 1.000 | 5 | 60 |
-| **mean** | **0.083** | **1.000** | — | — |
+| `easy` | 0.000 | 1.000 | 19 | 30 |
+| `medium` | 0.000 | 1.000 | 10 | 50 |
+| `hard` | 0.000 | 1.000 | 10 | 60 |
+| **mean** | **0.000** | **1.000** | — | — |
 
 Graders are deterministic: running the same sequence of actions always produces the same score.
 

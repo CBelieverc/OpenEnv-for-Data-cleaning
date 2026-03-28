@@ -1,4 +1,13 @@
-"""Task 3 (Hard): Deduplicate records and resolve conflicts."""
+"""Task 3 (Hard): Deduplicate records and resolve conflicts.
+
+Genuinely challenging because:
+- Pair (1,2): Same phone, different names ("John Smith" vs "J. Smith"), different emails
+- Pair (3,4): Same name + phone, different email formats (jane@ vs jane.doe@)
+- Pair (5,6): Same email + phone, names differ ("Robert" vs "Bob" — nickname detection)
+- Pair (8,9): Same phone + name, emails differ (charlie@ vs charles.davis@)
+- Pair (12,13): Same phone + name, emails differ (frank@ vs frank.t@)
+- Hints are intentionally vague to require reasoning, not just pattern matching
+"""
 
 # Dirty dataset: 15 records with 5 duplicate groups
 TASK3_DIRTY = [
@@ -19,51 +28,83 @@ TASK3_DIRTY = [
     {"id": "15", "name": "Henry Lee", "email": "henry@edu.school", "phone": "5554682073", "address": "480 Spruce Dr", "joined": "2024-03-20"},
 ]
 
-# Expected: 10 unique records after dedup (duplicates 2,4,6,9,13 removed)
-TASK3_EXPECTED_IDS = {"1", "3", "5", "7", "8", "10", "11", "12", "14", "15"}
-
-# Ground truth duplicate pairs (each pair shares a phone number)
+# Ground truth duplicate pairs
 DUPLICATE_PAIRS = {
-    ("1", "2"),   # John Smith / J. Smith
-    ("3", "4"),   # Jane Doe / Jane Doe
-    ("5", "6"),   # Robert Brown / Bob Brown
-    ("8", "9"),   # Charlie Davis / Charlie Davis
-    ("12", "13"), # Frank Taylor / Frank Taylor
+    ("1", "2"),   # Phone match, name fuzzy (John vs J.)
+    ("3", "4"),   # Name + phone exact, email format differs
+    ("5", "6"),   # Email + phone exact, name fuzzy (Robert vs Bob)
+    ("8", "9"),   # Phone + name exact, email differs (charlie@ vs charles.davis@)
+    ("12", "13"), # Phone + name exact, email differs (frank@ vs frank.t@)
 }
 
 # IDs that should be removed (the "duplicate" in each pair)
 DUPLICATE_IDS_TO_REMOVE = {"2", "4", "6", "9", "13"}
 
-# Detected issues
+# Master IDs that should be kept
+MASTER_IDS = {"1", "3", "5", "7", "8", "10", "11", "12", "14", "15"}
+
+# Detected issues — hints are intentionally vague to require reasoning
 TASK3_ISSUES = [
-    {"issue_id": "dup_1_2", "type": "duplicate", "record_ids": ["1", "2"], "hint": "Same phone number: 5551234567"},
-    {"issue_id": "dup_3_4", "type": "duplicate", "record_ids": ["3", "4"], "hint": "Same name 'Jane Doe' and phone 5559876543"},
-    {"issue_id": "dup_5_6", "type": "duplicate", "record_ids": ["5", "6"], "hint": "Same email 'bob@email.com' and phone 5552468135"},
-    {"issue_id": "dup_8_9", "type": "duplicate", "record_ids": ["8", "9"], "hint": "Same phone number: 5558642097"},
-    {"issue_id": "dup_12_13", "type": "duplicate", "record_ids": ["12", "13"], "hint": "Same phone number: 5559513570"},
+    {
+        "issue_id": "dup_1_2",
+        "type": "duplicate",
+        "record_ids": ["1", "2"],
+        "hint": "These records may refer to the same person. Check phone, name similarity, and address overlap.",
+    },
+    {
+        "issue_id": "dup_3_4",
+        "type": "duplicate",
+        "record_ids": ["3", "4"],
+        "hint": "Same name and phone number. Different email format — likely the same person with multiple email addresses.",
+    },
+    {
+        "issue_id": "dup_5_6",
+        "type": "duplicate",
+        "record_ids": ["5", "6"],
+        "hint": "Same email and phone. Names differ — one may be a nickname or shortened form.",
+    },
+    {
+        "issue_id": "dup_8_9",
+        "type": "duplicate",
+        "record_ids": ["8", "9"],
+        "hint": "Same phone and name. Different email addresses — could be work vs personal email.",
+    },
+    {
+        "issue_id": "dup_12_13",
+        "type": "duplicate",
+        "record_ids": ["12", "13"],
+        "hint": "Same phone and name. Email addresses differ slightly — may be different accounts for the same person.",
+    },
 ]
 
 
 def grade_task3(current_data: list, expected_data: list, duplicate_groups: dict = None, **kwargs) -> float:
-    """Grade Task 3 on duplicate identification (50%) and record removal (50%)."""
+    """Grade Task 3 on duplicate identification (50%) and record removal (50%).
+
+    Scoring breakdown:
+    - 50%: Duplicate identification F1 (precision + recall on pairs)
+    - 50%: Record removal accuracy (duplicates removed, masters kept)
+    """
     if duplicate_groups is None:
         duplicate_groups = {}
 
-    # Score 1: Duplicate identification (F1 on pairs)
     id_score = _grade_duplicate_identification(duplicate_groups)
-
-    # Score 2: Correct record removal (are the right records removed?)
     removal_score = _grade_record_removal(current_data)
 
     return (id_score * 0.5) + (removal_score * 0.5)
 
 
 def _grade_duplicate_identification(identified_groups: dict) -> float:
-    """Score duplicate identification using precision + recall on pairs."""
+    """Score duplicate identification using precision + recall (F1) on pairs."""
     gt_pairs = DUPLICATE_PAIRS
 
     id_pairs = set()
     for master, members in identified_groups.items():
+        # Handle both string and list formats
+        if isinstance(members, str):
+            members = [members]
+        elif not isinstance(members, (list, set, tuple)):
+            continue
         for m in members:
             if m != master:
                 id_pairs.add(tuple(sorted([master, m])))
@@ -82,18 +123,15 @@ def _grade_duplicate_identification(identified_groups: dict) -> float:
 
 
 def _grade_record_removal(current_data: list) -> float:
-    """Score whether correct records were removed (duplicates) and kept (masters)."""
+    """Score whether correct records were removed and masters kept."""
     current_ids = {r["id"] for r in current_data}
 
     # Check duplicates were removed
-    removed_correctly = len(DUPLICATE_IDS_TO_REMOVE & (set(TASK3_DIRTY) - current_ids if False else DUPLICATE_IDS_TO_REMOVE - current_ids))
-    # Actually: check which duplicate IDs are NOT in current data
     removed = DUPLICATE_IDS_TO_REMOVE - current_ids
     removal_rate = len(removed) / len(DUPLICATE_IDS_TO_REMOVE)
 
     # Check masters were kept
-    master_ids = TASK3_EXPECTED_IDS
-    kept = master_ids & current_ids
-    keep_rate = len(kept) / len(master_ids)
+    kept = MASTER_IDS & current_ids
+    keep_rate = len(kept) / len(MASTER_IDS)
 
     return (removal_rate + keep_rate) / 2.0
