@@ -95,7 +95,9 @@ def grade_task2(current_data: list, expected_data: list, **kwargs) -> float:
     for current_record, expected_record in zip(current_data, expected_data):
         for field in expected_record:
             total_fields += 1
-            curr_val = str(current_record.get(field, "")).strip()
+            if field not in current_record:
+                continue
+            curr_val = str(current_record[field]).strip()
             exp_val = str(expected_record[field]).strip()
             if curr_val.lower() == exp_val.lower():
                 correct_fields += 1

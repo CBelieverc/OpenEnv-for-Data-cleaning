@@ -86,14 +86,24 @@ def parse_action(response_text: str) -> dict:
     except json.JSONDecodeError:
         pass
 
-    json_match = re.search(r'\{[^{}"\'`]+\}', response_text)
-    if json_match:
-        try:
-            action = json.loads(json_match.group())
-            if isinstance(action, dict) and "operation" in action:
-                return action
-        except json.JSONDecodeError:
-            pass
+    # Find JSON object with balanced braces (handles nested structures)
+    brace_count = 0
+    start_idx = None
+    for i, char in enumerate(response_text):
+        if char == '{':
+            if brace_count == 0:
+                start_idx = i
+            brace_count += 1
+        elif char == '}':
+            brace_count -= 1
+            if brace_count == 0 and start_idx is not None:
+                try:
+                    action = json.loads(response_text[start_idx : i + 1])
+                    if isinstance(action, dict) and "operation" in action:
+                        return action
+                except json.JSONDecodeError:
+                    pass
+                start_idx = None
 
     return {"operation": "noop"}
 

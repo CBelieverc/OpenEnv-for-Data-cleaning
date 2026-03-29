@@ -29,6 +29,7 @@ class DataCleaningEnvironment(Environment):
         self._issues = []
         self._fixed_issues = set()
         self._duplicate_groups = {}
+        self._record_index = {}
         self._task_id = ""
         self._max_steps = 50
         self._step_count = 0
@@ -52,6 +53,7 @@ class DataCleaningEnvironment(Environment):
         self._issues = copy.deepcopy(task["issues"])
         self._fixed_issues = set()
         self._duplicate_groups = {}
+        self._record_index = {r["id"]: r for r in self._current_data}
         self._max_steps = task["max_steps"]
         self._step_count = 0
         self._total_issues = len(self._issues)
@@ -264,7 +266,13 @@ class DataCleaningEnvironment(Environment):
                 master_record[field] = value
 
         self._update_current_data(action.master_id, master_record)
-        self._current_data = [r for r in self._current_data if r.get("id") != action.record_id]
+        self._remove_record(action.record_id)
+
+        # Reassign any duplicates of the merged record to the new master
+        for dup_id, master_id in list(self._duplicate_groups.items()):
+            if master_id == action.record_id:
+                self._duplicate_groups[dup_id] = action.master_id
+
         self._duplicate_groups[action.record_id] = action.master_id
 
         return {
@@ -277,28 +285,28 @@ class DataCleaningEnvironment(Environment):
         if not action.record_id:
             return {"status": "invalid", "message": "delete_record requires record_id"}
 
-        before = len(self._current_data)
-        self._current_data = [r for r in self._current_data if r.get("id") != action.record_id]
-        after = len(self._current_data)
-
-        if before == after:
+        if action.record_id not in self._record_index:
             return {"status": "error", "message": f"Record {action.record_id} not found"}
 
+        self._remove_record(action.record_id)
         return {"status": "success", "message": f"Deleted record {action.record_id}"}
 
     def _find_record(self, record_id: str) -> dict:
         """Find a record by ID."""
-        for record in self._current_data:
-            if record.get("id") == record_id:
-                return record
-        return None
+        return self._record_index.get(record_id)
 
     def _update_current_data(self, record_id: str, updated_record: dict):
         """Update a record in current_data."""
         for i, record in enumerate(self._current_data):
             if record.get("id") == record_id:
                 self._current_data[i] = updated_record
+                self._record_index[record_id] = updated_record
                 break
+
+    def _remove_record(self, record_id: str):
+        """Remove a record from current_data and the index."""
+        self._current_data = [r for r in self._current_data if r.get("id") != record_id]
+        self._record_index.pop(record_id, None)
 
     def _compute_score(self) -> float:
         """Compute current score using task grader."""
