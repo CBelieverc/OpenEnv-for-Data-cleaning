@@ -133,7 +133,12 @@ def deterministic_agent(observation) -> dict:
     hint_lower = hint.lower()
     new_value = None
 
-    if "integer" in hint_lower or "int" in hint_lower:
+    if "boolean" in hint_lower:
+        if "true" in hint_lower and "false" not in hint_lower:
+            new_value = True
+        elif "false" in hint_lower:
+            new_value = False
+    elif "integer" in hint_lower or "int" in hint_lower:
         match = re.search(r'integer\s+(\d+)', hint_lower)
         if match:
             new_value = int(match.group(1))
@@ -141,14 +146,9 @@ def deterministic_agent(observation) -> dict:
         match = re.search(r'float\s+([\d.]+)', hint_lower)
         if match:
             new_value = float(match.group(1))
-    elif "boolean" in hint_lower or "true" in hint_lower or "false" in hint_lower:
-        if "true" in hint_lower and "false" not in hint_lower:
-            new_value = True
-        elif "false" in hint_lower:
-            new_value = False
     elif "null" in hint_lower or "none" in hint_lower:
         new_value = None
-    elif "iso format" in hint_lower or "iso" in hint_lower:
+    elif "iso format" in hint_lower or "iso" in hint_lower or "convert" in hint_lower:
         match = re.search(r"['\"](\d{4}-\d{2}-\d{2})['\"]", hint)
         if match:
             new_value = match.group(1)
@@ -156,14 +156,12 @@ def deterministic_agent(observation) -> dict:
         match = re.search(r"['\"]?(\d{10,})['\"]?", hint)
         if match:
             new_value = match.group(1)
-    elif "title case" in hint_lower or "title" in hint_lower:
-        match = re.search(r"['\"]([A-Z][a-z]+ [A-Z][a-z]+)['\"]", hint)
-        if match:
-            new_value = match.group(1)
-    elif "lowercase" in hint_lower:
-        match = re.search(r"['\"]([^'\"]+@[^'\"]+)['\"]", hint)
-        if match:
-            new_value = match.group(1).strip().lower()
+
+    # Fallback: extract the last single-quoted string as the expected value
+    if new_value is None:
+        quoted = re.findall(r"'([^']*)'", hint)
+        if quoted:
+            new_value = quoted[-1]
 
     if new_value is not None:
         return {"operation": "set_field", "record_id": record_id, "field_name": field, "new_value": new_value}

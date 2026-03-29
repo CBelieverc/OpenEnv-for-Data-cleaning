@@ -109,7 +109,7 @@ class DataCleaningEnvironment(Environment):
         result = self._execute_action(action)
 
         current_score = self._compute_score()
-        reward = self._calculate_reward(current_score)
+        reward = self._calculate_reward(current_score, action.operation)
         self._previous_score = current_score
 
         done = self._step_count >= self._max_steps or current_score >= 1.0
@@ -296,12 +296,12 @@ class DataCleaningEnvironment(Environment):
         return self._record_index.get(record_id)
 
     def _update_current_data(self, record_id: str, updated_record: dict):
-        """Update a record in current_data."""
+        """Update a record in current_data and sync the index."""
+        self._record_index[record_id] = updated_record
         for i, record in enumerate(self._current_data):
             if record.get("id") == record_id:
                 self._current_data[i] = updated_record
-                self._record_index[record_id] = updated_record
-                break
+                return
 
     def _remove_record(self, record_id: str):
         """Remove a record from current_data and the index."""
@@ -316,7 +316,7 @@ class DataCleaningEnvironment(Environment):
             return grade_fn(self._current_data, self._expected_data, duplicate_groups=self._duplicate_groups)
         return grade_fn(self._current_data, self._expected_data)
 
-    def _calculate_reward(self, current_score: float) -> float:
+    def _calculate_reward(self, current_score: float, operation: str = "") -> float:
         """Calculate reward based on score improvement with efficiency and quality bonuses.
 
         Reward breakdown:
@@ -339,6 +339,10 @@ class DataCleaningEnvironment(Environment):
             if self._max_steps > 0:
                 efficiency = 1.0 - (self._step_count / self._max_steps)
                 reward += efficiency * 0.5
+
+        # Quality bonus for batch operations
+        if operation == "set_field_bulk":
+            reward += 0.1
 
         # Stagnation / regression penalties
         if improvement < 0 and self._step_count > 1:
