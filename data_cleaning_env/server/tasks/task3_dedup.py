@@ -95,19 +95,17 @@ def grade_task3(current_data: list, expected_data: list, duplicate_groups: dict 
 
 
 def _grade_duplicate_identification(identified_groups: dict) -> float:
-    """Score duplicate identification using precision + recall (F1) on pairs."""
+    """Score duplicate identification using precision + recall (F1) on pairs.
+
+    identified_groups is {duplicate_id: master_id} as stored by the environment.
+    """
     gt_pairs = DUPLICATE_PAIRS
 
+    # Convert {dup_id: master_id} entries to sorted pairs
     id_pairs = set()
-    for master, members in identified_groups.items():
-        # Handle both string and list formats
-        if isinstance(members, str):
-            members = [members]
-        elif not isinstance(members, (list, set, tuple)):
-            continue
-        for m in members:
-            if m != master:
-                id_pairs.add(tuple(sorted([master, m])))
+    for dup_id, master_id in identified_groups.items():
+        if dup_id != master_id:
+            id_pairs.add(tuple(sorted([dup_id, master_id])))
 
     if not gt_pairs:
         return 1.0
